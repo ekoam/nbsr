@@ -218,8 +218,8 @@ query_ls <- function(raw_strs, f_converter, f_nap) {
 }
 
 #' Get metadata from the NBS website.
-#' @description This function retrieves the table of contents of a database or the
-#'   preview of all indicators.
+#' @description This function retrieves the table of contents or the preview of
+#'   all indicators for a database.
 #' @param what either "toc" (i.e. table of contents) or "prev" (i.e. preview).
 #' @param database the NBS database to be visited by the querier.
 #'   \itemize{

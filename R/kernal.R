@@ -114,7 +114,7 @@ q_validate <- function(json_trees) {
 }
 
 
-### this function handles the JSON data received and converts it into data and tddn tibbles ###
+### this function handles the JSON data received and converts it into tibbles ###
 json_forest_handler <- function(json_trees) {
   src_sf <- function(f) function(...) {
     srcs <- lapply(..1, attr, "src", TRUE)
@@ -172,7 +172,7 @@ json_forest_handler <- function(json_trees) {
 
   list(
     data = bind_cols(categ, categ_, list(value = numer)),
-    tddn = select(
+    meta = select(
       tdd, indicator_code = code, indicator_name = cname,
       unit, description = exp, remark = memo, source = src
     )
@@ -268,7 +268,7 @@ get_meta <- function(what = c("toc", "prev"),
   json_forest_handler(query_ls(
     vapply(toc[names(toc) != "isParent"], `[[`, character(1L), "id"),
     function(x) q_str_f(x, "prev"), nap
-  ))[["tddn"]]
+  ))[["meta"]]
 }
 
 #' Get indicator data from the NBS website.

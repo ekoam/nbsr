@@ -39,7 +39,7 @@ to be flagged by the anti-bot mechanism on the NBS website.}
 A list of two dataframes: indicators and their metadata.
 }
 \description{
-This function retrieves indicators from a database sequentially.
+Retrieve indicators sequentially from a database.
 }
 \examples{
 \dontrun{

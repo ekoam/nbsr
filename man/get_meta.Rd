@@ -34,8 +34,8 @@ website.}
 A dataframe that contains the metadata.
 }
 \description{
-This function retrieves the table of contents or the preview of
-all indicators for a database.
+Retrieve the table of contents or the preview of all indicators
+from a database.
 }
 \examples{
 \dontrun{

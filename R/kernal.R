@@ -1,8 +1,7 @@
 #' @importFrom urltools param_set
 #' @importFrom rjson fromJSON
-#' @importFrom httr GET user_agent set_config config content
+#' @importFrom httr GET user_agent timeout set_config config
 #' @importFrom purrr transpose
-#' @importFrom stringr str_detect
 #' @importFrom tibble as_tibble
 #' @importFrom dplyr if_else bind_rows bind_cols select
 #' @importFrom stats runif setNames
@@ -11,11 +10,10 @@
 # fromJSON <- rjson::fromJSON
 # GET <- httr::GET
 # user_agent <- httr::user_agent
+# timeout <- httr::timeout
 # set_config <- httr::set_config
 # config <- httr::config
-# content <- httr::content
 # transpose <- purrr::transpose
-# str_detect <- stringr::str_detect
 # as_tibble <- tibble::as_tibble
 # if_else <- dplyr::if_else
 # bind_rows <- dplyr::bind_rows
@@ -181,32 +179,34 @@ json_forest_handler <- function(json_trees) {
 
 
 ### this function force the querier to wait for a given amount of time until it starts the next query ###
-wait <- function(task, seconds) {
-  message("- Triggered antibot mechanism at ", basename(task), ", scheduled to retry in ", seconds, "s")
+wait <- function(seconds) {
+  message("- Scheduled to retry in ", seconds, "s")
   pb <- txtProgressBar(min = 0, max = 100, style = 3)
-  for(i in 1:100){
+  for(i in 1:100) {
     Sys.sleep(seconds / 100)
     setTxtProgressBar(pb, i)
   }
   close(pb)
-  message("- Retrying now ...")
 }
 
 
 ### this function is the main function to generate a query call to NBS.
 ### Currenly, it cannot bypass the antibot mechanism of the website and has to
-### wait for the mechanism to deactivate before starts the next request ###
+### wait for the mechanism to deactivate before subsequent requests ###
 query <- function(q_str, nap) {
   repeat {
     if (!is.null(nap)) Sys.sleep(nap)
     message("- Querying: ", basename(q_str), "...")
-    trial <- content(GET(
-      q_str, user_agent(sample(ua_list, 1L)), set_config(config(ssl_verifypeer = FALSE))
-    ), "text", encoding = "UTF-8")
-    if (!str_detect(trial, "(\u8bf7\u5f00\u542f)|(\u8bbf\u95ee\u9a8c\u8bc1)")) {
-      return(`attr<-`(fromJSON(trial), "src", q_str))
-    }
-    wait(q_str, as.integer(runif(1, 240, 360)))
+    delayedAssign("dat", rawToChar(GET(
+      q_str, user_agent(sample(ua_list, 1L)),
+      timeout(60), set_config(config(ssl_verifypeer = FALSE))
+    )[["content"]]))
+    tryCatch(return(
+      `attr<-`(fromJSON(dat), "src", q_str)
+    ), error = function(e) {
+      message("- Failed at ", basename(q_str), "...\n  ", e[["message"]])
+    })
+    wait(as.integer(runif(1, 240, 360)))
   }
 }
 query_ls <- function(raw_strs, f_converter, f_nap) {
@@ -218,8 +218,8 @@ query_ls <- function(raw_strs, f_converter, f_nap) {
 }
 
 #' Get metadata from the NBS website.
-#' @description This function retrieves the table of contents or the preview of
-#'   all indicators for a database.
+#' @description Retrieve the table of contents or the preview of all indicators
+#'   from a database.
 #' @param what either "toc" (i.e. table of contents) or "prev" (i.e. preview).
 #' @param database the NBS database to be visited by the querier.
 #'   \itemize{
@@ -263,16 +263,18 @@ get_meta <- function(what = c("toc", "prev"),
   }
 
   toc <- recur_query()
-  if (what[[1L]] == "toc") return(bind_rows(toc[-1L]))
+  if (what[[1L]] == "toc")
+    return(bind_rows(toc[-1L]))
 
+  toc <- vapply(toc, `[`, vector("list", 2L), c("isParent", "id"))
   json_forest_handler(query_ls(
-    vapply(toc[names(toc) != "isParent"], `[[`, character(1L), "id"),
+    unlist(toc["id", ])[!unlist(toc["isParent", ])],
     function(x) q_str_f(x, "prev"), nap
   ))[["meta"]]
 }
 
 #' Get indicator data from the NBS website.
-#' @description This function retrieves indicators from a database sequentially.
+#' @description Retrieve indicators sequentially from a database.
 #' @param indicators a character vector of indicator codes like \code{"A010101"}
 #'   or \code{c("A010101", "A010102")}.
 #' @param database see the \code{database} argument in \code{\link{get_meta}}.

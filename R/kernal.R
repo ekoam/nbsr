@@ -86,7 +86,7 @@ recur_pluck <- function(forest, ...) {
       }
     } else {
       if (is.placeholder(als[[1L]]) && is.pure.selector(als[[2L]])) {
-        recur_(purrr::transpose(trs)[[als[[2L]]]], als[-2L])
+        recur_(transpose(trs)[[als[[2L]]]], als[-2L])
       } else if (is.selector(als[[1L]])) {
         recur_(trs[[select_(trs, als[[1L]])]], als[-1L])
       } else {

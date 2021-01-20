@@ -90,14 +90,19 @@ recur_pluck <- function(forest, ...) {
 }
 
 
-q_validate <- function(json_trees) {
+validate <- function(json_trees) {
   sel <- vapply(json_trees, function(x) {
-    code <- gsub(".*\\{\"wdcode\":\"zb\",\"valuecode\":\"([0-9A-Z]+)\"\\}.*", "\\1", attr(x, "src", TRUE))
-    has_data <- length(x[["returndata"]][["datanodes"]]) > 0
-    if (!has_data) {
-      warning("Invalid indicator code '", code, "'. Querier did not find such an indicator in the database.")
+    code <- sub(".*\\{\"wdcode\":\"zb\",\"valuecode\":\"([0-9A-Z]+)\"\\}.*", "\\1", attr(x, "src", TRUE))
+    if (x[["returncode"]] != 200L) {
+      msg <- sub("(.+?)([[:punct:]]*)(\\w{2})$", "\\1 (\\3)", x[["returndata"]])
+      warning(msg, " for indicator '", code, "'.", call. = FALSE, immediate. = TRUE)
+      return(FALSE)
     }
-    has_data
+    if (!length(x[["returndata"]][["datanodes"]]) > 0) {
+      warning("Querier did not find indicator '", code, "' in the database.", call. = FALSE, immediate. = TRUE)
+      return(FALSE)
+    }
+    TRUE
   }, logical(1L))
   if (all(!sel)) {
     stop("No data found.")
@@ -133,7 +138,7 @@ json_forest_handler <- function(json_trees) {
     `names<-`(l, f(names(l)))
   }
 
-  json_trees <- q_validate(json_trees)
+  json_trees <- validate(json_trees)
   wdcode <- recur_pluck(json_trees, ., "returndata", "wdnodes", ., "wdcode")
   wdname <- recur_pluck(json_trees, ., "returndata", "wdnodes", ., "wdname")
   cname <- recur_pluck(json_trees, ., "returndata", "wdnodes", (.), "nodes", ., "cname")

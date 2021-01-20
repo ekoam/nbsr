@@ -222,20 +222,23 @@ query_ls <- function(f_urls, f_nap) {
 #'   \code{~TRUE}, i.e., always take a nap in-between two queries.
 #' @param how a function that generates a single random number to be used as the
 #'   nap length. Default to be \code{\link[stats]{runif}}.
-#' @param ... arguments to be passed into the \code{how} function.
+#' @param ... arguments to be passed into the \code{how} function. Note that
+#'   argument \code{n} is fixed at 1.
 #' @return a function that generates a single random number conditional upon
 #'   \code{when} and \code{how}.
 #' @examples
 #' \dontrun{
 #' # always take a nap of 0.5-1s in-between two queries.
-#' nap(~TRUE, runif, 1L, 0.5, 1)
+#' nap(min = 0.5, max = 1)
 #' # never take naps for the first 20 calls; take naps of 0.5-1s for the rest.
-#' nap(~. > 20L, runif, 1L, 0.5, 1)
+#' nap(~. > 20L, min = 0.5, max = 1)
 #' }
 #' @export
 nap <- function(when = ~TRUE, how = runif, ...) function(i) {
   when <- as_mapper(when)
-  if (when(i)) function() how(...)
+  args <- list(...)
+  args[["n"]] <- 1L
+  if (when(i)) function() do.call(how, args)
 }
 
 
@@ -267,7 +270,7 @@ nap <- function(when = ~TRUE, how = runif, ...) function(i) {
 get_meta <- function(what = c("toc", "prev"),
                      database = c("fsnd", "hgnd", "fsjd", "hgjd", "fsyd", "hgyd"),
                      language = c("en", "zh"),
-                     nap_control = nap(~TRUE, runif, 1L, .5, 1)) {
+                     nap_control = nap(min = .5, max = 1)) {
   recur_query <- function(x = list(isParent = TRUE, id = "zb", src = "")) {
     f_url <- set_params(
       url_list[language][[1L]], x[["id"]], database[[1L]], def = "toc"
@@ -324,7 +327,7 @@ get_meta <- function(what = c("toc", "prev"),
 get_data <- function(indicators, period = "1949-",
                      database = c("fsnd", "hgnd", "fsjd", "hgjd", "fsyd", "hgyd"),
                      language = c("en", "zh"),
-                     nap_control = nap(~. > 20L, runif, 1L, .5, 1)) {
+                     nap_control = nap(~. > 20L, min = .5, max = 1)) {
   json_forest_handler(query_ls(set_all_params(
     url_list[language][[1L]], unname(indicators), database[[1L]], period
   ), nap_control))

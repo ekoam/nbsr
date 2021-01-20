@@ -17,7 +17,8 @@ means the querier only takes naps after the first 10 calls. Default to be
 \item{how}{a function that generates a single random number to be used as the
 nap length. Default to be \code{\link[stats]{runif}}.}
 
-\item{...}{arguments to be passed into the \code{how} function.}
+\item{...}{arguments to be passed into the \code{how} function. Note that
+argument \code{n} is fixed at 1.}
 }
 \value{
 a function that generates a single random number conditional upon
@@ -31,8 +32,8 @@ website.
 \examples{
 \dontrun{
 # always take a nap of 0.5-1s in-between two queries.
-nap(~TRUE, runif, 1L, 0.5, 1)
+nap(min = 0.5, max = 1)
 # never take naps for the first 20 calls; take naps of 0.5-1s for the rest.
-nap(~. > 20L, runif, 1L, 0.5, 1)
+nap(~. > 20L, min = 0.5, max = 1)
 }
 }

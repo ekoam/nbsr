@@ -9,7 +9,7 @@ get_data(
   period = "1949-",
   database = c("fsnd", "hgnd", "fsjd", "hgjd", "fsyd", "hgyd"),
   language = c("en", "zh"),
-  nap_control = nap(~. > 20L, runif, 1L, 0.5, 1)
+  nap_control = nap(~. > 20L, min = 0.5, max = 1)
 )
 }
 \arguments{

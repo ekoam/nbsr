@@ -8,7 +8,7 @@ get_meta(
   what = c("toc", "prev"),
   database = c("fsnd", "hgnd", "fsjd", "hgjd", "fsyd", "hgyd"),
   language = c("en", "zh"),
-  nap_control = nap(~TRUE, runif, 1L, 0.5, 1)
+  nap_control = nap(min = 0.5, max = 1)
 )
 }
 \arguments{

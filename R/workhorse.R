@@ -193,7 +193,9 @@ wait <- function(seconds) {
 ### Currenly, it cannot bypass the antibot mechanism of the website and has to
 ### wait for the mechanism to deactivate before subsequent requests ###
 query <- function(f_url, f_nap) {
+  k <- 0L
   repeat {
+    k <- k + 1L
     if (!is.null(f_nap))
       Sys.sleep(f_nap())
     url <- f_url()
@@ -207,7 +209,7 @@ query <- function(f_url, f_nap) {
     ), error = function(e) {
       message("- Failed at ", basename(url), "...\n  ", e[["message"]])
     })
-    wait(as.integer(runif(1, 240, 360)))
+    wait(as.integer(runif(1L, 24 * k, 36 * k)))
   }
 }
 query_ls <- function(f_urls, f_nap) {

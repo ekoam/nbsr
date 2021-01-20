@@ -1,12 +1,12 @@
-#' @importFrom urltools param_set
+#' @importFrom urltools parameters<-
 #' @importFrom rjson fromJSON
 #' @importFrom httr GET user_agent timeout set_config config
 #' @importFrom purrr transpose
 #' @importFrom tibble as_tibble
 #' @importFrom dplyr if_else bind_rows bind_cols select
-#' @importFrom stats runif setNames
+#' @importFrom stats runif
 #' @importFrom utils setTxtProgressBar txtProgressBar
-# param_set <- urltools::param_set
+# `parameters<-` <- urltools::`parameters<-`
 # fromJSON <- rjson::fromJSON
 # GET <- httr::GET
 # user_agent <- httr::user_agent
@@ -20,38 +20,31 @@
 # bind_cols <- dplyr::bind_cols
 # select <- dplyr::select
 
-### this function generates a query string ###
-set_params <- function(params, for_url) {
-  Reduce(function(u, k) param_set(u, k, params[[k]]), names(params), for_url)
-}
-
 
 ### this function generates a unix timestamp ###
 gen_k1 <- function() format(as.numeric(Sys.time()) * 1000, digits = 13L)
 
 
-### this function generates a list of query parameters ###
-params <- function(indicator, database, over_time = NULL, def = c("idr", "prev", "toc")) {
-  switch(def[[1L]],
-         idr = list(m = 'QueryData',
-                    dbcode = database,
-                    rowcode = 'reg',
-                    colcode = 'sj',
-                    wds = paste0('[{"wdcode":"zb","valuecode":"', indicator, '"}]'),
-                    dfwds = paste0('[{"wdcode":"sj","valuecode":"', over_time, '"}]'),
-                    k1 = gen_k1()),
-         prev = list(m = 'QueryData',
-                     dbcode = database,
-                     rowcode = 'zb',
-                     colcode = 'sj',
-                     wds = '[]',
-                     dfwds = paste0('[{"wdcode":"zb","valuecode":"', indicator, '"}]'),
-                     k1 = gen_k1()),
-         toc = list(m = 'getTree',
-                    dbcode = database,
-                    wdcode = 'zb',
-                    id = indicator))
+### this function generates a query string ###
+set_params <- function(mas_url, indicator, database, over_time = NULL, def = c("idr", "prev", "toc")) function() {
+  params <- switch(
+    def[[1L]],
+    idr = sprintf(
+      'm=QueryData&dbcode=%s&rowcode=reg&colcode=sj&wds=[{"wdcode":"zb","valuecode":"%s"}]&dfwds=[{"wdcode":"sj","valuecode":"%s"}]&k1=%s',
+      database, indicator, over_time, gen_k1()
+    ),
+    prev = sprintf(
+      'm=QueryData&dbcode=%s&rowcode=reg&colcode=sj&wds=[]&dfwds=[{"wdcode":"zb","valuecode":"%s"}]&k1=%s',
+      database, indicator, gen_k1()
+    ),
+    toc = sprintf(
+      'm=getTree&dbcode=%s&wdcode=zb&id=%s',
+      database, indicator
+    )
+  )
+  `parameters<-`(mas_url, params)
 }
+set_all_params <- Vectorize(set_params, "indicator", SIMPLIFY = FALSE)
 
 
 recur_pluck <- function(forest, ...) {
@@ -193,26 +186,28 @@ wait <- function(seconds) {
 ### this function is the main function to generate a query call to NBS.
 ### Currenly, it cannot bypass the antibot mechanism of the website and has to
 ### wait for the mechanism to deactivate before subsequent requests ###
-query <- function(q_str, nap) {
+query <- function(qurl, nap) {
   repeat {
-    if (!is.null(nap)) Sys.sleep(nap)
-    message("- Querying: ", basename(q_str), "...")
+    if (!is.null(nap))
+      Sys.sleep(nap)
+    url <- qurl()
+    message("- Querying: ", basename(url), "...")
     delayedAssign("dat", rawToChar(GET(
-      q_str, user_agent(sample(ua_list, 1L)),
+      url, user_agent(sample(ua_list, 1L)),
       timeout(60), set_config(config(ssl_verifypeer = FALSE))
     )[["content"]]))
     tryCatch(return(
-      `attr<-`(fromJSON(dat), "src", q_str)
+      `attr<-`(fromJSON(dat), "src", url)
     ), error = function(e) {
-      message("- Failed at ", basename(q_str), "...\n  ", e[["message"]])
+      message("- Failed at ", basename(url), "...\n  ", e[["message"]])
     })
     wait(as.integer(runif(1, 240, 360)))
   }
 }
-query_ls <- function(raw_strs, f_converter, f_nap) {
-  n <- length(raw_strs)
+query_ls <- function(f_url, f_nap) {
+  n <- length(f_url)
   lapply(seq_len(n), function(i) query(
-    f_converter(raw_strs[[i]]),
+    f_url[[i]],
     if (!is.null(formals(f_nap))) f_nap(n, i) else f_nap()
   ))
 }
@@ -245,32 +240,29 @@ get_meta <- function(what = c("toc", "prev"),
                      database = c("fsnd", "hgnd", "fsjd", "hgjd", "fsyd", "hgyd"),
                      language = c("en", "zh"),
                      nap = function() runif(1, .5, 1)) {
-
-  q_str_f <- function(id, def) {
-     set_params(params(id, database[[1L]], def = def), url_list[language][[1L]])
-  }
-
-  recur_query <- function(x = list(isParent = TRUE, id = "zb", src = ""), f = q_str_f) {
+  recur_query <- function(x = list(isParent = TRUE, id = "zb", src = "")) {
+    qurl <- set_params(
+      url_list[language][[1L]], x[["id"]], database[[1L]], def = "toc"
+    )
     if (x[["isParent"]]) {
-      json_tree <- query(f(x[["id"]], "toc"), nap())
-      c(list(x), unlist(lapply(
-        json_tree,
-        function(i) {i[["src"]] <- attr(json_tree, "src", TRUE); recur_query(i)}
-      ), recursive = FALSE))
+      json_tree <- query(qurl, nap())
+      c(list(x), unlist(lapply(json_tree, function(i) {
+        i[["src"]] <- attr(json_tree, "src", TRUE)
+        recur_query(i)
+      }), recursive = FALSE))
     } else {
       list(x)
     }
   }
-
   toc <- recur_query()
   if (what[[1L]] == "toc")
     return(bind_rows(toc[-1L]))
 
   toc <- vapply(toc, `[`, vector("list", 2L), c("isParent", "id"))
-  json_forest_handler(query_ls(
-    unlist(toc["id", ])[!unlist(toc["isParent", ])],
-    function(x) q_str_f(x, "prev"), nap
-  ))[["meta"]]
+  ids <- unlist(toc["id", ])[!unlist(toc["isParent", ])]
+  json_forest_handler(query_ls(set_all_params(
+    url_list[language][[1L]], ids, database[[1L]], "2010", "prev"
+  ), nap))[["meta"]]
 }
 
 #' Get indicator data from the NBS website.
@@ -303,9 +295,7 @@ get_data <- function(indicators, period = "1949-",
                      database = c("fsnd", "hgnd", "fsjd", "hgjd", "fsyd", "hgyd"),
                      language = c("en", "zh"),
                      nap = function(n, i) if (n - i > 20L) runif(1, .5, 1)) {
-  idr_f <- function(x) set_params(params(x, database[[1L]], period), url_list[language][[1L]])
-
-  json_forest_handler(query_ls(
-    unname(indicators), idr_f, nap
-  ))
+  json_forest_handler(query_ls(set_all_params(
+    url_list[language][[1L]], unname(indicators), database[[1L]], period
+  ), nap))
 }

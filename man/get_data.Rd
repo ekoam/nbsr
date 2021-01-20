@@ -9,7 +9,7 @@ get_data(
   period = "1949-",
   database = c("fsnd", "hgnd", "fsjd", "hgjd", "fsyd", "hgyd"),
   language = c("en", "zh"),
-  nap = function(n, i) if (n - i > 20L) runif(1, 0.5, 1)
+  nap_control = nap(~. > 20L, runif, 1L, 0.5, 1)
 )
 }
 \arguments{
@@ -29,11 +29,12 @@ period filters:
 
 \item{language}{either "en" (i.e. English) or "zh" (i.e. Chinese).}
 
-\item{nap}{let the function take a nap in-between two query calls. No nap to
-be taken for a short list of indicators (less than 20); a nap of length
-defaulting to be a random number between 0.5s and 1s is invoked for each
-indicator in addition to the first 20. This makes the querier less likely
-to be flagged by the anti-bot mechanism on the NBS website.}
+\item{nap_control}{let the function take a nap in-between two query calls. No
+nap to be taken for a short list of indicators (less than 20); a nap of
+length defaulting to be a random number between 0.5s and 1s is invoked for
+each indicator in addition to the first 20. See \code{\link{nap}} for more
+details on how to control the pause. This makes the querier less likely to
+be flagged by the anti-bot mechanism on the NBS website.}
 }
 \value{
 A list of two dataframes: indicators and their metadata.

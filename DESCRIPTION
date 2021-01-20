@@ -1,6 +1,6 @@
 Package: nbsr
 Title: R API for China's National Bureau of Statistics
-Version: 0.0.0.9003
+Version: 0.1.0
 Authors@R: 
     person(given = "Ke",
            family = "Mao",

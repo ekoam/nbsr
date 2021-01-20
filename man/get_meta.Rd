@@ -8,7 +8,7 @@ get_meta(
   what = c("toc", "prev"),
   database = c("fsnd", "hgnd", "fsjd", "hgjd", "fsyd", "hgyd"),
   language = c("en", "zh"),
-  nap = function() runif(1, 0.5, 1)
+  nap_control = nap(~TRUE, runif, 1L, 0.5, 1)
 )
 }
 \arguments{
@@ -25,9 +25,10 @@ get_meta(
 
 \item{language}{either "en" (i.e. English) or "zh" (i.e. Chinese).}
 
-\item{nap}{let the function take a nap in-between two query calls. The nap
-length defaults to be a random number between 0.5s and 1s. This makes the
-querier less likely to be flagged by the anti-bot mechanism on the NBS
+\item{nap_control}{let the function take a nap in-between two query calls.
+The nap length defaults to be a random number between 0.5s and 1s. See
+\code{\link{nap}} for more details on how to control the pause. This makes
+the querier less likely to be flagged by the anti-bot mechanism on the NBS
 website.}
 }
 \value{

@@ -1,7 +1,7 @@
 #' @importFrom urltools parameters<-
 #' @importFrom rjson fromJSON
 #' @importFrom httr GET user_agent timeout set_config config
-#' @importFrom purrr transpose
+#' @importFrom purrr transpose as_mapper
 #' @importFrom tibble as_tibble
 #' @importFrom dplyr if_else bind_rows bind_cols select
 #' @importFrom stats runif
@@ -14,6 +14,7 @@
 # set_config <- httr::set_config
 # config <- httr::config
 # transpose <- purrr::transpose
+# as_mapper <- purrr::as_mapper
 # as_tibble <- tibble::as_tibble
 # if_else <- dplyr::if_else
 # bind_rows <- dplyr::bind_rows
@@ -186,11 +187,11 @@ wait <- function(seconds) {
 ### this function is the main function to generate a query call to NBS.
 ### Currenly, it cannot bypass the antibot mechanism of the website and has to
 ### wait for the mechanism to deactivate before subsequent requests ###
-query <- function(qurl, nap) {
+query <- function(f_url, f_nap) {
   repeat {
-    if (!is.null(nap))
-      Sys.sleep(nap)
-    url <- qurl()
+    if (!is.null(f_nap))
+      Sys.sleep(f_nap())
+    url <- f_url()
     message("- Querying: ", basename(url), "...")
     delayedAssign("dat", rawToChar(GET(
       url, user_agent(sample(ua_list, 1L)),
@@ -204,13 +205,39 @@ query <- function(qurl, nap) {
     wait(as.integer(runif(1, 240, 360)))
   }
 }
-query_ls <- function(f_url, f_nap) {
-  n <- length(f_url)
-  lapply(seq_len(n), function(i) query(
-    f_url[[i]],
-    if (!is.null(formals(f_nap))) f_nap(n, i) else f_nap()
-  ))
+query_ls <- function(f_urls, f_nap) {
+  lapply(seq_along(f_urls), function(i) query(f_urls[[i]], f_nap(i)))
 }
+
+
+#' Control the naps in-between query calls.
+#' @description An auxiliary function to control the pauses in-between query
+#'   calls so as to avoid being flagged by the anti-bot mechanism on the NBS
+#'   website.
+#' @param when a function that takes an integer as the only argument and returns
+#'   a single \code{TRUE/FALSE}; it could be a purrr-style lambda. See
+#'   \code{\link[purrr]{as_mapper}} for more details on the syntax. That integer
+#'   represents the position of the current query. For example, \code{~.x > 10}
+#'   means the querier only takes naps after the first 10 calls. Default to be
+#'   \code{~TRUE}, i.e., always take a nap in-between two queries.
+#' @param how a function that generates a single random number to be used as the
+#'   nap length. Default to be \code{\link[stats]{runif}}.
+#' @param ... arguments to be passed into the \code{how} function.
+#' @return a function that generates a single random number conditional upon
+#'   \code{when} and \code{how}.
+#' @examples
+#' \dontrun{
+#' # always take a nap of 0.5-1s in-between two queries.
+#' nap(~TRUE, runif, 1L, 0.5, 1)
+#' # never take naps for the first 20 calls; take naps of 0.5-1s for the rest.
+#' nap(~. > 20L, runif, 1L, 0.5, 1)
+#' }
+#' @export
+nap <- function(when = ~TRUE, how = runif, ...) function(i) {
+  when <- as_mapper(when)
+  if (when(i)) function() how(...)
+}
+
 
 #' Get metadata from the NBS website.
 #' @description Retrieve the table of contents or the preview of all indicators
@@ -225,9 +252,10 @@ query_ls <- function(f_url, f_nap) {
 #'    \item{\code{yd }}{for monthly databases.}
 #'   }
 #' @param language either "en" (i.e. English) or "zh" (i.e. Chinese).
-#' @param nap let the function take a nap in-between two query calls. The nap
-#'   length defaults to be a random number between 0.5s and 1s. This makes the
-#'   querier less likely to be flagged by the anti-bot mechanism on the NBS
+#' @param nap_control let the function take a nap in-between two query calls.
+#'   The nap length defaults to be a random number between 0.5s and 1s. See
+#'   \code{\link{nap}} for more details on how to control the pause. This makes
+#'   the querier less likely to be flagged by the anti-bot mechanism on the NBS
 #'   website.
 #' @return A dataframe that contains the metadata.
 #' @examples
@@ -239,13 +267,13 @@ query_ls <- function(f_url, f_nap) {
 get_meta <- function(what = c("toc", "prev"),
                      database = c("fsnd", "hgnd", "fsjd", "hgjd", "fsyd", "hgyd"),
                      language = c("en", "zh"),
-                     nap = function() runif(1, .5, 1)) {
+                     nap_control = nap(~TRUE, runif, 1L, .5, 1)) {
   recur_query <- function(x = list(isParent = TRUE, id = "zb", src = "")) {
-    qurl <- set_params(
+    f_url <- set_params(
       url_list[language][[1L]], x[["id"]], database[[1L]], def = "toc"
     )
     if (x[["isParent"]]) {
-      json_tree <- query(qurl, nap())
+      json_tree <- query(f_url, nap_control(0L))
       c(list(x), unlist(lapply(json_tree, function(i) {
         i[["src"]] <- attr(json_tree, "src", TRUE)
         recur_query(i)
@@ -262,8 +290,9 @@ get_meta <- function(what = c("toc", "prev"),
   ids <- unlist(toc["id", ])[!unlist(toc["isParent", ])]
   json_forest_handler(query_ls(set_all_params(
     url_list[language][[1L]], ids, database[[1L]], "2010", "prev"
-  ), nap))[["meta"]]
+  ), nap_control))[["meta"]]
 }
+
 
 #' Get indicator data from the NBS website.
 #' @description Retrieve indicators sequentially from a database.
@@ -279,11 +308,12 @@ get_meta <- function(what = c("toc", "prev"),
 #'    \item{duration: }{2013-, 2008-2009, last10.}
 #'   }
 #' @param language either "en" (i.e. English) or "zh" (i.e. Chinese).
-#' @param nap let the function take a nap in-between two query calls. No nap to
-#'   be taken for a short list of indicators (less than 20); a nap of length
-#'   defaulting to be a random number between 0.5s and 1s is invoked for each
-#'   indicator in addition to the first 20. This makes the querier less likely
-#'   to be flagged by the anti-bot mechanism on the NBS website.
+#' @param nap_control let the function take a nap in-between two query calls. No
+#'   nap to be taken for a short list of indicators (less than 20); a nap of
+#'   length defaulting to be a random number between 0.5s and 1s is invoked for
+#'   each indicator in addition to the first 20. See \code{\link{nap}} for more
+#'   details on how to control the pause. This makes the querier less likely to
+#'   be flagged by the anti-bot mechanism on the NBS website.
 #' @return A list of two dataframes: indicators and their metadata.
 #' @examples
 #' \dontrun{
@@ -294,8 +324,8 @@ get_meta <- function(what = c("toc", "prev"),
 get_data <- function(indicators, period = "1949-",
                      database = c("fsnd", "hgnd", "fsjd", "hgjd", "fsyd", "hgyd"),
                      language = c("en", "zh"),
-                     nap = function(n, i) if (n - i > 20L) runif(1, .5, 1)) {
+                     nap_control = nap(~. > 20L, runif, 1L, .5, 1)) {
   json_forest_handler(query_ls(set_all_params(
     url_list[language][[1L]], unname(indicators), database[[1L]], period
-  ), nap))
+  ), nap_control))
 }

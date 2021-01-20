@@ -12,4 +12,4 @@ ua_list <- purrr::compose(
 
 
 usethis::use_data(url_list, ua_list, overwrite = TRUE, internal = TRUE)
-
+rm(ua_list, url_list)

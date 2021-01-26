@@ -35,7 +35,7 @@ set_params <- function(mas_url, indicator, database, over_time = NULL, def = c("
       database, indicator, over_time, gen_k1()
     ),
     prev = sprintf(
-      'm=QueryData&dbcode=%s&rowcode=reg&colcode=sj&wds=[]&dfwds=[{"wdcode":"zb","valuecode":"%s"}]&k1=%s',
+      'm=QueryData&dbcode=%s&rowcode=zb&colcode=sj&wds=[]&dfwds=[{"wdcode":"zb","valuecode":"%s"}]&k1=%s',
       database, indicator, gen_k1()
     ),
     toc = sprintf(
